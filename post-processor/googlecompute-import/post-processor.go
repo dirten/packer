@@ -127,23 +127,8 @@ func (p *PostProcessor) PostProcess(ui packer.Ui, artifact packer.Artifact) (pac
 }
 
 func UploadToBucket(accountFile string, ui packer.Ui, artifact packer.Artifact, bucket string, gcsObjectName string) (string, error) {
-	var client *http.Client
-	var account googlecompute.AccountFile
-
-	err := googlecompute.ProcessAccountFile(&account, accountFile)
-	if err != nil {
-		return "", err
-	}
-
-	var DriverScopes = []string{"https://www.googleapis.com/auth/devstorage.full_control"}
-	conf := jwt.Config{
-		Email:      account.ClientEmail,
-		PrivateKey: []byte(account.PrivateKey),
-		Scopes:     DriverScopes,
-		TokenURL:   "https://accounts.google.com/o/oauth2/token",
-	}
-
-	client = conf.Client(oauth2.NoContext)
+	var driverScopes = []string{"https://www.googleapis.com/auth/devstorage.full_control"}
+	client = getClient(driverScopes)
 	service, err := storage.New(client)
 	if err != nil {
 		return "", err
@@ -180,24 +165,8 @@ func UploadToBucket(accountFile string, ui packer.Ui, artifact packer.Artifact, 
 }
 
 func CreateGceImage(accountFile string, ui packer.Ui, project string, rawImageURL string, imageName string, imageDescription string, imageFamily string, imageLabels map[string]string) (packer.Artifact, error) {
-	var client *http.Client
-	var account googlecompute.AccountFile
-
-	err := googlecompute.ProcessAccountFile(&account, accountFile)
-	if err != nil {
-		return nil, err
-	}
-
-	var DriverScopes = []string{"https://www.googleapis.com/auth/compute", "https://www.googleapis.com/auth/devstorage.full_control"}
-	conf := jwt.Config{
-		Email:      account.ClientEmail,
-		PrivateKey: []byte(account.PrivateKey),
-		Scopes:     DriverScopes,
-		TokenURL:   "https://accounts.google.com/o/oauth2/token",
-	}
-
-	client = conf.Client(oauth2.NoContext)
-
+	var driverScopes = []string{"https://www.googleapis.com/auth/compute", "https://www.googleapis.com/auth/devstorage.full_control"}
+	client = getClient(driverScopes)
 	service, err := compute.New(client)
 	if err != nil {
 		return nil, err
@@ -243,26 +212,11 @@ func CreateGceImage(accountFile string, ui packer.Ui, project string, rawImageUR
 }
 
 func DeleteFromBucket(accountFile string, ui packer.Ui, bucket string, gcsObjectName string) error {
-	var client *http.Client
-	var account googlecompute.AccountFile
-
-	err := googlecompute.ProcessAccountFile(&account, accountFile)
+	var driverScopes = []string{"https://www.googleapis.com/auth/devstorage.full_control"}
+	client = getClient(driverScopes)
+	service, err := compute.New(client)
 	if err != nil {
-		return err
-	}
-
-	var DriverScopes = []string{"https://www.googleapis.com/auth/devstorage.full_control"}
-	conf := jwt.Config{
-		Email:      account.ClientEmail,
-		PrivateKey: []byte(account.PrivateKey),
-		Scopes:     DriverScopes,
-		TokenURL:   "https://accounts.google.com/o/oauth2/token",
-	}
-
-	client = conf.Client(oauth2.NoContext)
-	service, err := storage.New(client)
-	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ui.Say(fmt.Sprintf("Deleting import source from GCS %s/%s...", bucket, gcsObjectName))
@@ -273,4 +227,22 @@ func DeleteFromBucket(accountFile string, ui packer.Ui, bucket string, gcsObject
 	}
 
 	return nil
+}
+
+func getClient(driverScopes []string) *http.Client {
+	var client *http.Client
+	var account googlecompute.AccountFile
+
+	err := googlecompute.ProcessAccountFile(&account, accountFile)
+	if err != nil {
+		return "", err
+	}
+	conf := jwt.Config{
+		Email:      account.ClientEmail,
+		PrivateKey: []byte(account.PrivateKey),
+		Scopes:     DriverScopes,
+		TokenURL:   "https://accounts.google.com/o/oauth2/token",
+	}
+	client = conf.Client(oauth2.NoContext)
+	return client
 }
